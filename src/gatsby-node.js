@@ -2,18 +2,11 @@ const _ = require(`lodash`)
 const crypto = require(`crypto`)
 const normalize = require(`./normalize`)
 
-const {
-  apiInstagramPosts,
-  scrapingInstagramPosts,
-  apiInstagramHashtags,
-  scrapingInstagramHashtags,
-  scrapingInstagramUser,
-} = require(`./instagram`)
+const { apiInstagramPosts } = require(`./instagram`)
 
 const defaultOptions = {
   type: `account`,
   paginate: 100,
-  hashtags: false,
 }
 
 async function getInstagramPosts(options) {
@@ -21,37 +14,15 @@ async function getInstagramPosts(options) {
 
   if (options.access_token && options.instagram_id) {
     data = await apiInstagramPosts(options)
-  } else {
-    data = await scrapingInstagramPosts(options)
   }
 
   return data
-}
-
-async function getInstagramHashtags(options) {
-  let data
-
-  if (options.access_token && options.instagram_id) {
-    data = await apiInstagramHashtags(options)
-  } else {
-    data = await scrapingInstagramHashtags(options)
-  }
-
-  return data
-}
-
-async function getInstagramUser(options) {
-  const data = await scrapingInstagramUser(options)
-  return [data]
 }
 
 function createPostNode(datum, params) {
   return {
     type: params.type,
-    username:
-      params.type === `hashtag`
-        ? params.hashtag
-        : datum.username || datum.owner.username || datum.owner.id,
+    username: datum.username || datum.owner.username || datum.owner.id,
     id: datum.shortcode,
     parent: `__SOURCE__`,
     internal: {
@@ -73,7 +44,6 @@ function createPostNode(datum, params) {
     dimensions: datum.dimensions,
     comments:
       _.get(datum, `edge_media_to_comment.count`) || datum.comments_count,
-    hashtags: datum.hashtags,
     permalink: datum.permalink,
     carouselImages: _.get(datum, `children.data`, []).map((imgObj) => {
       return {
@@ -106,7 +76,7 @@ function processDatum(datum, params) {
     params.type === `user-profile`
       ? createUserNode(datum, params)
       : createPostNode(datum, params)
-      
+
   // Get content digest of node. (Required field)
   const contentDigest = crypto
     .createHash(`md5`)
@@ -126,14 +96,10 @@ exports.sourceNodes = async (
 
   if (params.type === `account`) {
     data = await getInstagramPosts(params)
-  } else if (params.type === `hashtag`) {
-    data = await getInstagramHashtags(params)
-  } else if (params.type === `user-profile`) {
-    data = await getInstagramUser(params)
   } else {
     console.warn(`Unknown type for gatsby-source-instagram: ${params.type}`)
   }
-  
+
   // Process data into nodes.
   if (data) {
     return Promise.all(
